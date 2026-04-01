@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/README/">
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="FinanceTracker.Data/FinanceTracker.Data.csproj" Id="09798f70-1ba4-4120-bc7a-710b04a22d68" />
+  <Project Path="FinanceTracker.Presentation.Console/FinanceTracker.Presentation.Console.csproj" Id="b8def747-8a51-4001-9d36-1ff9d0b298c4" />
+  <Project Path="FinanceTracker.Services/FinanceTracker.Services.csproj" Id="2d7d90ce-ab8f-41d2-aad4-7f07d432cea7" />
+  <Project Path="FinanceTracker.Tests/FinanceTracker.Tests.csproj" Id="f4f3b390-602c-419e-9451-0b42e821bd81" />
+</Solution>
