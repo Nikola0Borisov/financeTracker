@@ -5,8 +5,14 @@ namespace FinanceTracker.Data
 {
     public class AppDbContext : DbContext
     {
-        // Конструктор, приемащ опции (използва се от тестовете)
+        // Параметризираният конструктор, приемащ опции (използва се от тестовете)
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+        {
+        }
+
+        // Параметър-безпараметърен конструктор за случай, когато кодът създава контекст без опции
+        public AppDbContext()
+            : this(new DbContextOptionsBuilder<AppDbContext>().UseSqlite("Data Source=finance.db").Options)
         {
         }
 
@@ -29,4 +35,4 @@ namespace FinanceTracker.Data
             return new AppDbContext(optionsBuilder.Options);
         }
     }
-}
+}                                                   
