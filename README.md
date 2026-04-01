@@ -29,15 +29,25 @@
 ## Архитектура
 FinanceTracker/
 ├── FinanceTracker.Data/ # Слой за данни
+
 │ ├── Entities/ # Модели (Category, Transaction)
+
 │ └── AppDbContext.cs # DbContext с конфигурация
+
 ├── FinanceTracker.Services/ # Слой за услуги
+
 │ ├── Interfaces/ # ITransactionService, ICategoryService
+
 │ └── Implementations/ # TransactionService, CategoryService
+
 ├── FinanceTracker.Presentation.Console/ # Конзолен интерфейс
+
 │ └── Program.cs # Меню и логика за потребителско взаимодействие
+
 ├── FinanceTracker.Tests/ # Тестове (xUnit, In‑Memory DB)
+
 │ └── Services/ # Тестове за услугите
+
 └── README.md
 
 ## Използвани технологии
