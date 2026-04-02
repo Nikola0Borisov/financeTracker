@@ -2,16 +2,24 @@
 using FinanceTracker.Data;
 using FinanceTracker.Data.Entities;
 using FinanceTracker.Services.Implementations;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace FinanceTracker.Tests.Services
 {
+    /// <summary>
+    /// Тестове за CategoryService.
+    /// </summary>
     public class CategoryServiceTests : IDisposable
     {
         private readonly AppDbContext _context;
         private readonly CategoryService _service;
+        private readonly SqliteConnection _sqliteConnection;
 
+        /// <summary>
+        /// Инициализира тестовете с In‑Memory база.
+        /// </summary>
         public CategoryServiceTests()
         {
             var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -19,8 +27,18 @@ namespace FinanceTracker.Tests.Services
                 .Options;
             _context = new AppDbContext(options);
             _service = new CategoryService(_context);
+
+            _sqliteConnection = new SqliteConnection("DataSource=:memory:");
+            _sqliteConnection.Open();
         }
 
+        public void Dispose()
+        {
+            _context.Dispose();
+            _sqliteConnection.Dispose();
+        }
+
+        // ---------- Съществуващи тестове ----------
         [Fact]
         public void AddCategory_ShouldIncreaseCount()
         {
@@ -96,14 +114,45 @@ namespace FinanceTracker.Tests.Services
         [Fact]
         public void DeleteCategory_WhenNotExists_ShouldNotThrow()
         {
-            // Просто проверяваме, че няма изключение
-            _service.DeleteCategory(999);
+            var exception = Record.Exception(() => _service.DeleteCategory(999));
+            Assert.Null(exception);
         }
 
-        public void Dispose()
+        // ========== НОВИ ТЕСТОВЕ ЗА ПОВИШАВАНЕ НА ПОКРИТИЕТО ==========
+
+        /// <summary>Тества UpdateCategory за несъществуваща категория – очаква се DbUpdateConcurrencyException.</summary>
+        [Fact]
+        public void UpdateCategory_WhenNotExists_ThrowsConcurrencyException()
         {
-            _context.Dispose();
+            var options = new DbContextOptionsBuilder<AppDbContext>()
+                .UseSqlite(_sqliteConnection)
+                .Options;
+            using var sqliteContext = new AppDbContext(options);
+            sqliteContext.Database.EnsureCreated();
+            var service = new CategoryService(sqliteContext);
+            var fakeCategory = new Category { Id = 9999, Name = "Fake", Type = "Income" };
+
+            Assert.Throws<DbUpdateConcurrencyException>(() => service.UpdateCategory(fakeCategory));
         }
 
+        /// <summary>Тества SeedDefaultCategories – добавя категории само ако няма.</summary>
+        [Fact]
+        public void SeedDefaultCategories_AddsOnlyWhenEmpty()
+        {
+            using var cleanContext = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+            var cleanService = new CategoryService(cleanContext);
+
+            // Първо извикване – трябва да добави 4 категории
+            cleanService.SeedDefaultCategories();
+            Assert.Equal(4, cleanContext.Categories.Count());
+
+            // Второ извикване – не трябва да добавя нови
+            cleanService.SeedDefaultCategories();
+            Assert.Equal(4, cleanContext.Categories.Count());
+        }
+
+       
     }
 }

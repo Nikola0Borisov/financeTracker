@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.IO;
 using FinanceTracker.Data;
 using FinanceTracker.Data.Entities;
 using Microsoft.Data.Sqlite;
@@ -8,6 +9,9 @@ using Xunit;
 
 namespace FinanceTracker.Tests.Data
 {
+    /// <summary>
+    /// Тестове за слоя данни – DbContext конфигурации и връзки.
+    /// </summary>
     public class DataLayerTests : IDisposable
     {
         private readonly AppDbContext _context;
@@ -30,7 +34,6 @@ namespace FinanceTracker.Tests.Data
             var category = new Category { Name = "TestCat", Type = "Income" };
             _context.Categories.Add(category);
             _context.SaveChanges();
-
             var retrieved = _context.Categories.First();
             Assert.Equal("TestCat", retrieved.Name);
         }
@@ -84,49 +87,53 @@ namespace FinanceTracker.Tests.Data
             Assert.Equal("Updated", updated.Note);
         }
 
+        // ========== НОВИ ТЕСТОВЕ ЗА ПОВИШАВАНЕ НА ПОКРИТИЕТО ==========
+
+
+
+        /// <summary>Тества конфигурацията на връзката между Transaction и Category (OnModelCreating).</summary>
+        [Fact]
+        public void Relationship_TransactionHasCategory()
+        {
+            var category = new Category { Name = "RelCat", Type = "Income" };
+            _context.Categories.Add(category);
+            _context.SaveChanges();
+
+            var transaction = new Transaction
+            {
+                Amount = 100,
+                CategoryId = category.Id
+            };
+            _context.Transactions.Add(transaction);
+            _context.SaveChanges();
+
+            var loaded = _context.Transactions.Include(t => t.Category).First();
+            Assert.Equal("RelCat", loaded.Category.Name);
+        }
+
+        /// <summary>Тества каскадно изтриване – когато изтрием категория, транзакциите да се изтрият (Cascade).</summary>
+        [Fact]
+        public void DeleteCategory_CascadesToTransactions()
+        {
+            var category = new Category { Name = "ToDelete", Type = "Expense" };
+            _context.Categories.Add(category);
+            _context.SaveChanges();
+
+            var transaction = new Transaction { Amount = -50, CategoryId = category.Id };
+            _context.Transactions.Add(transaction);
+            _context.SaveChanges();
+
+            _context.Categories.Remove(category);
+            _context.SaveChanges();
+
+            Assert.Empty(_context.Categories);
+            Assert.Empty(_context.Transactions);
+        }
+
         public void Dispose()
         {
             _context.Dispose();
             _connection.Dispose();
-        }
-        [Fact]
-        public void DefaultDbContext_WithRealSqlite_CoversAllConfigurations()
-        {
-            // Use a unique temporary file for the SQLite database so it doesn't collide with an existing finance.db
-            var dbPath = Path.GetTempFileName();
-            try
-            {
-                var options = new DbContextOptionsBuilder<AppDbContext>()
-                    .UseSqlite($"Data Source={dbPath}")
-                    .Options;
-
-                using (var context = new AppDbContext(options)) // use explicit options pointing to temp file
-                {
-                    context.Database.EnsureCreated();
-
-                    var category = new Category { Name = "ConfigTest", Type = "Income" };
-                    context.Categories.Add(category);
-                    context.SaveChanges();
-
-                    var transaction = new Transaction
-                    {
-                        Amount = 100,
-                        Date = DateTime.Today,
-                        CategoryId = category.Id,
-                        Note = "Test"
-                    };
-                    context.Transactions.Add(transaction);
-                    context.SaveChanges();
-
-                    // Load transaction with category to cover Include and the relationship configured in OnModelCreating
-                    var loaded = context.Transactions.Include(t => t.Category).First();
-                    Assert.Equal("ConfigTest", loaded.Category.Name);
-                }
-            }
-            finally
-            {
-                if (File.Exists(dbPath)) File.Delete(dbPath);
-            }
         }
     }
 }

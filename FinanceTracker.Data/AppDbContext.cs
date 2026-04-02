@@ -3,22 +3,40 @@ using FinanceTracker.Data.Entities;
 
 namespace FinanceTracker.Data
 {
+    /// <summary>
+    /// Контекст на базата данни за Entity Framework Core.
+    /// </summary>
     public class AppDbContext : DbContext
     {
-        // Параметризираният конструктор, приемащ опции (използва се от тестовете)
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
-        {
-        }
+        /// <summary>
+        /// Конструктор с опции (използва се за Dependency Injection и тестове).
+        /// </summary>
+        /// <param name="options">Настройки на контекста.</param>
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
-        // Параметър-безпараметърен конструктор за случай, когато кодът създава контекст без опции
+        /// <summary>
+        /// Конструктор по подразбиране – използва SQLite файл "finance.db".
+        /// </summary>
         public AppDbContext()
-            : this(new DbContextOptionsBuilder<AppDbContext>().UseSqlite("Data Source=finance.db").Options)
-        {
-        }
+            : this(new DbContextOptionsBuilder<AppDbContext>()
+                  .UseSqlite("Data Source=finance.db")
+                  .Options)
+        { }
 
+        /// <summary>
+        /// Таблица с категории.
+        /// </summary>
         public DbSet<Category> Categories { get; set; }
+
+        /// <summary>
+        /// Таблица с транзакции.
+        /// </summary>
         public DbSet<Transaction> Transactions { get; set; }
 
+        /// <summary>
+        /// Конфигуриране на връзките между таблиците.
+        /// </summary>
+        /// <param name="modelBuilder">Обект за изграждане на модела.</param>
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Transaction>()
@@ -27,7 +45,10 @@ namespace FinanceTracker.Data
                 .HasForeignKey(t => t.CategoryId);
         }
 
-        // Фабричен метод за приложението (SQLite)
+        /// <summary>
+        /// Фабричен метод за създаване на контекст по подразбиране (SQLite).
+        /// </summary>
+        /// <returns>Нова инстанция на AppDbContext.</returns>
         public static AppDbContext CreateDefault()
         {
             var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
@@ -35,4 +56,4 @@ namespace FinanceTracker.Data
             return new AppDbContext(optionsBuilder.Options);
         }
     }
-}                                                   
+}

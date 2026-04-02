@@ -11,43 +11,54 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FinanceTracker.Services.Implementations
 {
+    /// <summary>
+    /// DTO за експорт на транзакции в CSV – избягва навигационните свойства.
+    /// </summary>
+    public class TransactionExportDto
+    {
+        /// <summary>Идентификатор на транзакцията.</summary>
+        public int Id { get; set; }
+        /// <summary>Дата на транзакцията.</summary>
+        public DateTime Date { get; set; }
+        /// <summary>Сума на транзакцията.</summary>
+        public decimal Amount { get; set; }
+        /// <summary>Име на категорията.</summary>
+        public string CategoryName { get; set; }
+        /// <summary>Бележка към транзакцията.</summary>
+        public string Note { get; set; }
+    }
+
+    /// <summary>
+    /// Реализация на услугата за управление на транзакции.
+    /// </summary>
     public class TransactionService : ITransactionService
     {
         private readonly AppDbContext _context;
 
         /// <summary>
-        /// Създава нова инстанция на услугата за транзакции.
+        /// Конструктор, приемащ контекст на базата данни.
         /// </summary>
-        /// <param name="context">Контекст на базата данни</param>
+        /// <param name="context">Контекст на базата данни.</param>
         public TransactionService(AppDbContext context)
         {
             _context = context;
         }
 
-        /// <summary>
-        /// Добавя нова транзакция.
-        /// </summary>
-        /// <param name="transaction">Транзакцията за добавяне</param>
+        /// <inheritdoc />
         public void AddTransaction(Transaction transaction)
         {
             _context.Transactions.Add(transaction);
             _context.SaveChanges();
         }
 
-        /// <summary>
-        /// Актуализира съществуваща транзакция.
-        /// </summary>
-        /// <param name="transaction">Транзакцията с променените данни</param>
+        /// <inheritdoc />
         public void UpdateTransaction(Transaction transaction)
         {
             _context.Transactions.Update(transaction);
             _context.SaveChanges();
         }
 
-        /// <summary>
-        /// Изтрива транзакция по идентификатор.
-        /// </summary>
-        /// <param name="id">Идентификатор на транзакцията</param>
+        /// <inheritdoc />
         public void DeleteTransaction(int id)
         {
             var transaction = _context.Transactions.Find(id);
@@ -58,11 +69,7 @@ namespace FinanceTracker.Services.Implementations
             }
         }
 
-        /// <summary>
-        /// Връща транзакция по идентификатор, включително категорията ѝ.
-        /// </summary>
-        /// <param name="id">Идентификатор на транзакцията</param>
-        /// <returns>Транзакция или null, ако не е намерена</returns>
+        /// <inheritdoc />
         public Transaction GetTransactionById(int id)
         {
             return _context.Transactions
@@ -70,10 +77,7 @@ namespace FinanceTracker.Services.Implementations
                 .FirstOrDefault(t => t.Id == id);
         }
 
-        /// <summary>
-        /// Връща всички транзакции, сортирани по дата (най-новите първи).
-        /// </summary>
-        /// <returns>Колекция от всички транзакции</returns>
+        /// <inheritdoc />
         public IEnumerable<Transaction> GetAllTransactions()
         {
             return _context.Transactions
@@ -82,12 +86,7 @@ namespace FinanceTracker.Services.Implementations
                 .ToList();
         }
 
-        /// <summary>
-        /// Връща транзакции в зададен времеви диапазон.
-        /// </summary>
-        /// <param name="start">Начална дата</param>
-        /// <param name="end">Крайна дата</param>
-        /// <returns>Транзакции, попадащи в диапазона</returns>
+        /// <inheritdoc />
         public IEnumerable<Transaction> GetTransactionsByDateRange(DateTime start, DateTime end)
         {
             return _context.Transactions
@@ -97,61 +96,62 @@ namespace FinanceTracker.Services.Implementations
                 .ToList();
         }
 
-        /// <summary>
-        /// Изчислява баланса (сума на всички транзакции) до определена дата.
-        /// </summary>
-        /// <param name="asOfDate">Крайна дата; ако е null, балансът е за всички транзакции</param>
-        /// <returns>Баланс</returns>
+        /// <inheritdoc />
         public decimal GetBalance(DateTime? asOfDate = null)
         {
             var query = _context.Transactions.AsQueryable();
             if (asOfDate.HasValue)
                 query = query.Where(t => t.Date <= asOfDate.Value);
-            return query.Sum(t => t.Amount);
+            // Изтегляме сумите в паметта и сумираме, за да избегнем проблем със SQLite
+            return query.Select(t => t.Amount).ToList().Sum();
         }
 
-        /// <summary>
-        /// Връща суми на разходите, групирани по категория, за даден период.
-        /// </summary>
-        /// <param name="start">Начална дата</param>
-        /// <param name="end">Крайна дата</param>
-        /// <returns>Речник с имена на категории и суми на разходите</returns>
+        /// <inheritdoc />
         public Dictionary<string, decimal> GetExpensesByCategory(DateTime start, DateTime end)
         {
-            var query = from t in _context.Transactions
-                        join c in _context.Categories on t.CategoryId equals c.Id
-                        where t.Date >= start && t.Date <= end && t.Amount < 0
-                        group t by c.Name into g
-                        select new { Category = g.Key, Total = -g.Sum(t => t.Amount) };
-            return query.ToDictionary(x => x.Category, x => x.Total);
+            // Изтегляме транзакциите в паметта и групираме на клиента (SQLite не поддържа агрегация на decimal)
+            var transactionsInPeriod = _context.Transactions
+                .Include(t => t.Category)
+                .Where(t => t.Date >= start && t.Date <= end && t.Amount < 0)
+                .ToList();
+
+            return transactionsInPeriod
+                .GroupBy(t => t.Category.Name)
+                .ToDictionary(g => g.Key, g => -g.Sum(t => t.Amount));
         }
 
-        /// <summary>
-        /// Връща суми на приходите, групирани по категория, за даден период.
-        /// </summary>
-        /// <param name="start">Начална дата</param>
-        /// <param name="end">Крайна дата</param>
-        /// <returns>Речник с имена на категории и суми на приходите</returns>
+        /// <inheritdoc />
         public Dictionary<string, decimal> GetIncomesByCategory(DateTime start, DateTime end)
         {
-            var query = from t in _context.Transactions
-                        join c in _context.Categories on t.CategoryId equals c.Id
-                        where t.Date >= start && t.Date <= end && t.Amount > 0
-                        group t by c.Name into g
-                        select new { Category = g.Key, Total = g.Sum(t => t.Amount) };
-            return query.ToDictionary(x => x.Category, x => x.Total);
+            var transactionsInPeriod = _context.Transactions
+                .Include(t => t.Category)
+                .Where(t => t.Date >= start && t.Date <= end && t.Amount > 0)
+                .ToList();
+
+            return transactionsInPeriod
+                .GroupBy(t => t.Category.Name)
+                .ToDictionary(g => g.Key, g => g.Sum(t => t.Amount));
         }
 
-        /// <summary>
-        /// Експортира транзакциите в CSV файл.
-        /// </summary>
-        /// <param name="filePath">Път до файла, където да се запише CSV</param>
-        /// <param name="transactions">Колекция от транзакции за експорт</param>
+        /// <inheritdoc />
         public void ExportToCsv(string filePath, IEnumerable<Transaction> transactions)
         {
+            var directory = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                Directory.CreateDirectory(directory);
+
+            var dtoList = transactions.Select(t => new TransactionExportDto
+            {
+                Id = t.Id,
+                Date = t.Date,
+                Amount = t.Amount,
+                CategoryName = t.Category?.Name ?? string.Empty,
+                Note = t.Note ?? string.Empty
+            }).ToList();
+
             using var writer = new StreamWriter(filePath);
             using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
-            csv.WriteRecords(transactions);
+            csv.WriteRecords(dtoList);
         }
     }
 }
